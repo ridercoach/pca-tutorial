@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.pdf
+*.html
+*.bib
+pca-tutorial_cache/
+pca-tutorial_files/
