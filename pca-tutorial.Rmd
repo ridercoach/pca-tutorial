@@ -3,10 +3,10 @@ title: "Principal Component Analysis: A Simple Example"
 author: "Eric N. Moyer"
 date: "`r Sys.Date()`"
 output:
-  tufte::tufte_html: default
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: pdflatex
+  tufte::tufte_html: default
   tufte::tufte_book:
     citation_package: natbib
     latex_engine: pdflatex
@@ -110,7 +110,7 @@ we desire in the world represented by our data.
 Much of this article is devoted to interpreting our PCA results; however, 
 first I want to look more closely at the information returned by `prcomp()`
 
-# Data returned by `prcomp()`
+# Data returned by `prcomp()`: `sdev`, `rotation`
 
 ```{r prcomp_results}
 names(pca)
@@ -196,6 +196,31 @@ Remember, we are not talking about causality here; we are just looking at how
 the features we have included in the study interact to give rise to meaningful 
 information in the data.
 
+# More data returned by `prcomp()`: `center`, `scale`, `x`
+
+We still haven't discussed the remaining three elements of the data 
+structure returned by `prcomp()`.  The elements `center` and `scale` are both 
+numeric vectors with the same number of elements there are features in the 
+data that was passed to `prcomp()`.  Recall that we instructed `prcomp()` to 
+center and scale the data; these vectors contain the numbers that were used 
+to do that, for each feature.  Using these vectors, we can scale the data 
+ourselves to see the numbers that `prcomp()` actually used for the analysis:
+
+```{r scaled-data}
+scaled_data <- scale(data, center = pca$center, scale = pca$scale)
+knitr::kable(
+  format(scaled_data[1:6,], digits = 1), 
+  caption = 'The centered and scaled data.'
+)
+```
+
+The table above contains the same sample as the table at the beginning of 
+this document, but with the numbers transformed in such as way as to put them 
+all on the same footing in terms of magnitude and variance, which makes the 
+analysis more accurate.
+
+Finally, the element `x` in the information returned by `prcomp()` contains the 
+*transformwd* data.
 
 # (original document)
 
