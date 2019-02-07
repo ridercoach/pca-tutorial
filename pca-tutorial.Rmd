@@ -16,6 +16,7 @@ link-citations: yes
 
 ```{r setup, include=FALSE}
 library(tufte)
+library(tidyverse)
 # invalidate cache when the tufte version changes
 knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'))
 options(htmltools.dir.version = FALSE)
@@ -63,6 +64,22 @@ The downside is that it can often be challenging to understand how the new
 control in order to make some improvement in our situation, which is usually 
 the ultimate return we want from the time and resources we invest in a data 
 project.
+
+# Correlation in the Data
+
+Nothing we do in this exploration assumes any of the features of our data 
+to be either "inputs" or "outputs".  We are not doing any modeling (not 
+really) or prediction; we just have a table that records the values of several 
+attributes for a bunch of samples.
+
+And yet, in the real world, which is where our data comes from, there 
+*does* exist correlation (the identification of which is often a %>%  first step 
+toward understanding how things work, which is what we really want.)  In this 
+example, which uses a small dataset of features that are familiar to most 
+of us, much of the correlation is intuitive and we will see it in the 
+PCA results.  However, if we were dealing with hundreds of features rather 
+than nine, and those features were more abstract than physical quantities 
+such as weight and engine displacement, this might not be the case.
 
 # Calling `prcomp()`
 
@@ -116,11 +133,71 @@ knitr::kable(
 )
 ```
 
-Each column in the above table holds the components of a unit vector^[Technically, 
-an "eigenvector of the covariance matrix", as you can learn from many online 
-sources.  However, `prcomp()` uses singular value decomposition (SVD) to get the 
-same result, for greater numerical accuracy.] in the 
+Each column in the above table holds the components of a unit
+vector^[Technically, an "eigenvector of the covariance matrix", as you can learn
+from many online sources.  However, for greater numerical accuracy, `prcomp()`
+uses singular value decomposition (SVD) to get the same result.] in the
 direction of the "axis" corresponding to that principal component.
+
+In a moment, we will anayze our PCA results using more rigorous methods, but 
+at this point let's glean what we can from what we have inh front of us.  Note that 
+these vectors are *in the frame of the original axes* (the features in our 
+dataset.)  So, taking PC2 for example, we see that the **gear** component 
+is much larger, relatively speaking, than the **cyl** component (0.551 vs 0.016); 
+this means that the direction of PC2 is more "aligned with" the original 
+"gear" feature axis than the "cyl" axis.  To put this another way, in terms 
+of PC2, the value of the "gear" feature make more difference than the value of 
+the "cyl" feature.
+
+Now, suppose, for example, we had found a PCA direction that was almost 
+completely aligned with one of the original feature axes, say, **disp**.  In 
+other words, its **disp** component was close to 1 and all the others were 
+close to zero.  This would mean that the "disp" feature by itself is somehow 
+"important" in the data.  However, if the hypothetical PCA direction we are 
+talking about here did not account for much of the overall variation in the 
+data, then this finding might not be of much practical use.
+
+```{r pc-heatmap, fig.margin = TRUE, fig.cap = "Overall importance of original features in the dataset, according to PCA.", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE, echo=FALSE}
+
+# make a df of the PCA vector components weighted by Proportion of Variance
+comps <- pca$rotation
+comp_wts <- matrix(rep(summary(pca)$importance[2,], 9), nrow = 9, byrow = TRUE)
+df <- data.frame(comps * comp_wts)
+
+# tidy the df to make it compatible with ggplot
+df <- cbind(rownames(df), data.frame(df, row.names = NULL))
+colnames(df)[1] <- "attr"
+df2 <- gather(df, colnames(df)[2:10], key = "PC", value = "comp")
+
+# reorder the y-axis to match the table of vector components
+# !!! must create new factor! cannot just change levels!
+df2$attr <- factor(df2$attr, levels=(rev(rownames(m))))
+
+# make the heatmap
+ggplot(df2, aes(x = PC, y = attr)) + 
+  geom_tile(aes(fill = comp), colour = "white") +
+  guides(fill = "none") +
+  scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred")
+```
+
+
+The plot at the right visually combines the information in the previous two 
+tables.  In each column in the plot, bolder colors indicate larger components 
+along the original feature axes (blue and red distinguish the sign of the 
+component, but here only the magnitude matters.)  Then, the colors in each 
+columnn are scaled by the "Proportion of Variance" in the PCA Summary table.  So 
+we can tell at a glance that only the first 2 or 3 PCA directions are meaningful, 
+and within those we can see which original features matter most.
+
+We see that most of the correlation (interaction) in the data is among the 
+features that have to do with how powerful a car's engine is, how much it weighs, 
+and its fuel efficiency, and this probably "feels correct" for most of us. 
+Remember, we are not talking about causality here; we are just looking at how 
+the features we have included in the study interact to give rise to meaningful 
+information in the data.
+
+
+# (original document)
 
 The Tufte handout style is a style that Edward Tufte uses in his books and handouts. Tufte's style is known for its extensive use of sidenotes, tight integration of graphics with text, and well-set typography. This style has been implemented in LaTeX and HTML/CSS^[See Github repositories [tufte-latex](https://github.com/tufte-latex/tufte-latex) and [tufte-css](https://github.com/edwardtufte/tufte-css)], respectively. We have ported both implementations into the [**tufte** package](https://github.com/rstudio/tufte). If you want LaTeX/PDF output, you may use the `tufte_handout` format for handouts, and `tufte_book` for books. For HTML output, use `tufte_html`. These formats can be either specified in the YAML metadata at the beginning of an R Markdown document (see an example below), or passed to the `rmarkdown::render()` function. See @R-rmarkdown for more information about **rmarkdown**.
 
