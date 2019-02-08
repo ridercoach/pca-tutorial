@@ -3,10 +3,10 @@ title: "Principal Component Analysis: A Simple Example"
 author: "Eric N. Moyer"
 date: "`r Sys.Date()`"
 output:
-  tufte::tufte_html: default
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: pdflatex
+  tufte::tufte_html: default
   tufte::tufte_book:
     citation_package: natbib
     latex_engine: pdflatex
@@ -17,6 +17,7 @@ link-citations: yes
 ```{r setup, include=FALSE}
 library(tufte)
 library(tidyverse)
+library(ggbiplot)
 # invalidate cache when the tufte version changes
 knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'))
 options(htmltools.dir.version = FALSE)
@@ -25,45 +26,102 @@ source("pca-utilities.R")
 
 # Introduction
 
-This exploration is inspired by Luke Hayden's excellent tutorial^[
+This exploration is inspired by Luke Hayden's excellent tutorial on DataCamp
+about doing Principal Component Analysis in R.^[
 [Link](https://www.datacamp.com/community/tutorials/pca-analysis-r) to the
-article] on DataCamp about doing Principal Component Analysis in R.  I do many
-of the same things as in Mr. Hayden's article, but I explore certain things in
-greater detail (sich as the information returned by `prcomp()`) and I include a
-brief look at using a `tidyverse` approach.
+article]  I use the same data and take the same basic approach, but Mr. Hayden
+explores more of the capabilities of `ggbiplot()`, and I take a closer look at
+the information returned by `prcomp()`.
 
-# Dataset
+# The Data
 
-For this exercise we will use the `mtcars` dataset built into R, but we will drop 
+We will use the `mtcars` dataset built into R, but we will drop 
 the two categorical features (eighth and ninth columns):
 
 ```{r data}
 data <- mtcars[c(1:7, 10, 11)]
 knitr::kable(
-  data[1:6,], caption = 'A subset of the data.'
+  data[1:4,], caption = 'The first few rows of the data'
 )
 ```
 
-The data has nine features.  The feature values for any given sample can be 
-thought of as the coordinates of a point in nine-dimensional space (nine axes.) 
-We use these particular axes for this dataset because they correspond to 
-real-world quantities that we can observe.  However, there is no guarantee that 
-any of these real-world axes will reveal patterns in the data as a whole, and 
-that is generally what we are looking for.
+Often in data analysis it is helpful to put all of our features "on the same
+footing" by *centering* (subtracting the mean) and *scaling* the values (so that
+they have unit variance) of each one, as shown below.^[This can be done for you by
+`prcomp()`, but for illustrative reasons I am doing it separately.] The mathematical 
+reasons for doing this are better explained by others^[such as this link], but you 
+should understand that even though the numbers have changed, the patterns in the 
+data are preserved.
 
-Principal Component Analysis gives us a new set of axes (a new set of features, 
-really, thought not real-world features,) that correspond to what matters 
-most in our data.  One way this often helps is that we discover that only a 
-few of these new features are needed to capture most of what is going on 
-(explain most of the variance,) and so we can throw the others 
-away without losing a lot of information.  Having fewer features to deal 
-with makes everything downstream a little simpler.
+```{r scaled_data}
+scaled_data <- scale(data, center = TRUE, scale = TRUE)
+knitr::kable(
+  format(scaled_data[1:4,], digits = 1), 
+  caption = 'Same data, centered and scaled'
+)
+```
 
-The downside is that it can often be challenging to understand how the new 
-"features" identified by PCA relate to real-world quantities that we can 
-control in order to make some improvement in our situation, which is usually 
-the ultimate return we want from the time and resources we invest in a data 
-project.
+# The Data as a Vector Space
+
+Our data has nine features.  For any given "observation" (e.g., Mazda RX4), the
+feature values can be thought of as the coordinates of a point (or the
+components of a vector, which is essentially the same thing) in nine-dimensional
+space, which is described by a coordinate system having nine axes. We have these
+axes because they correspond to real-world quantities that we can measure.
+However, this real-world coordinate system is not necessarily the best one for
+seeing important patterns in the data.
+
+Principal Component Analysis transforms our data onto a new set of
+axes^[resources, including 3blue1brown...], as shown below. *The observations 
+have not changed*; they are simply being described in terms of a different 
+coordinate system, in which the axes are the "principal components" found in 
+the data (PC1, PC2, etc) instead of the original measured quantities (mpg, 
+cyl, etc.)
+
+```{r xformed_data}
+pca <- prcomp(scaled_data)
+knitr::kable(
+  format(pca$x[1:4,], digits = 1), 
+  caption = 'Same data, transformed by PCA'
+)
+```
+
+The principal components (PCs) are really a new set of features (though not
+real-world features) that correspond to what matters most in our data.  Not only
+can this provide insight, but it often happens that most of the important
+information in the data is described by just a few of the PCs, allowing us to
+discard the others without losing much.  Fewer features (especially if you are
+starting with hundreds) makes everything downstream a little simpler.
+
+However, there is a downside: it can often be challenging to relate the PCs to
+real-world quantities that we can control in order to gain some practical
+benefit (which is usually the ultimate goal of any data project.)
+
+# Simple Model for Evaluating PCA Effects
+
+It is not the purpose of this article to do any modeling or prediction, nor 
+is PCA itself concerned at all with inputs, outputs, or predictions.^[PCA views 
+all features the same, and simply detects interactions between them.] 
+However, PCA is almost always used as just one tool in a project that *does* 
+do some kind of modeling, so it will be helpful to have a simple model to 
+use here to evaluate the effects of PCA.
+
+We will just do a basic linear regression, predicting mpg from all the other
+features, and evaluating the performance of the model by taking the square root
+of the sum of the squares of the residuals, which are included in the data
+structure returned by `lm()`.  We use the data that has been centered and
+scaled, because that is what is used to determine the PCs:
+
+```{r model_init}
+mod_scaled_data <- lm(mpg ~ ., as.data.frame(scaled_data))
+sqrt(sum(mod_scaled_data$residuals^2))
+```
+
+The above number is the composite, across all the observations in the data set, 
+of the difference between the prediction of the model and the actual value.  A 
+lower value indicates a better-performing model.  This value comes from using the 
+complete set of original features, and represents the best we can do without PCA. As we proceed, we will rerun this test in various ways based on insight gained from PCA, and 
+see what happens.
 
 # Correlation in the Data
 
@@ -206,7 +264,7 @@ center and scale the data; these vectors contain the numbers that were used
 to do that, for each feature.  Using these vectors, we can scale the data 
 ourselves to see the numbers that `prcomp()` actually used for the analysis:
 
-```{r scaled_data}
+```{r old_scaled_data}
 scaled_data <- scale(data, 
   center = pca$center, scale = pca$scale)
 knitr::kable(
@@ -230,7 +288,7 @@ to all the other samples, but the numbers needed to define it in terms of
 the new axes are different.  The table below shows the transformed data for the 
 same sample as above, and you can see that the numbers are different.
 
-```{r xformed_data}
+```{r old_xformed_data}
 knitr::kable(
   format(pca$x[1:6,], digits = 1), 
   caption = 'The data transformed to the new PCA axes.'
@@ -265,6 +323,19 @@ It is difficult to plot higher-dimensional data; however, given that
 our first two principal components capture 86% of the variation in our data, 
 it might be worth making a 2-D scatterplot using just these two dimensions, 
 to see if we can get any additional insight.
+
+```{r my_biplot, fig.width = 5, fig.height = 5, echo = FALSE}
+xformed_data <- as.data.frame(pca$x)
+ggplot(xformed_data) +
+  geom_point(aes(PC1, PC2), color = "blue") +
+  geom_spoke(aes(x = 0, y = 0, angle = pi/6, radius = 1), color = "red") +
+  xlim(-4, 4) + ylim(-4, 4)
+```
+
+
+```{r biplot, echo = FALSE, fig.width = 5, fig.height = 5, fig.fullwidth = TRUE}
+ggbiplot(pca)
+```
 
 # (original document)
 
