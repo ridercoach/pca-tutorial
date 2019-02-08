@@ -3,10 +3,10 @@ title: "Principal Component Analysis: A Simple Example"
 author: "Eric N. Moyer"
 date: "`r Sys.Date()`"
 output:
+  tufte::tufte_html: default
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: pdflatex
-  tufte::tufte_html: default
   tufte::tufte_book:
     citation_package: natbib
     latex_engine: pdflatex
@@ -157,7 +157,7 @@ close to zero.  This would mean that the "disp" feature by itself is somehow
 talking about here did not account for much of the overall variation in the 
 data, then this finding might not be of much practical use.
 
-```{r pc-heatmap, fig.margin = TRUE, fig.cap = "Overall importance of original features in the dataset, according to PCA.", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE, echo=FALSE}
+```{r pc_heatmap, fig.margin = TRUE, fig.cap = "Overall importance of original features in the dataset, according to PCA.", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE, echo=FALSE}
 
 # make a df of the PCA vector components weighted by Proportion of Variance
 comps <- pca$rotation
@@ -206,8 +206,9 @@ center and scale the data; these vectors contain the numbers that were used
 to do that, for each feature.  Using these vectors, we can scale the data 
 ourselves to see the numbers that `prcomp()` actually used for the analysis:
 
-```{r scaled-data}
-scaled_data <- scale(data, center = pca$center, scale = pca$scale)
+```{r scaled_data}
+scaled_data <- scale(data, 
+  center = pca$center, scale = pca$scale)
 knitr::kable(
   format(scaled_data[1:6,], digits = 1), 
   caption = 'The centered and scaled data.'
@@ -217,10 +218,53 @@ knitr::kable(
 The table above contains the same sample as the table at the beginning of 
 this document, but with the numbers transformed in such as way as to put them 
 all on the same footing in terms of magnitude and variance, which makes the 
-analysis more accurate.
+analysis more accurate.  Please note that transforming the data in this 
+way preserves the patterns in it, even though the numeric values have 
+changed.
 
 Finally, the element `x` in the information returned by `prcomp()` contains the 
-*transformwd* data.
+*transformwd* data.  Recall that the purpose of PCA is to find a new set of 
+axes that align with patterns in the data; when we do this, the vector of 
+values that represents a sample does not really change its identity relative 
+to all the other samples, but the numbers needed to define it in terms of 
+the new axes are different.  The table below shows the transformed data for the 
+same sample as above, and you can see that the numbers are different.
+
+```{r xformed_data}
+knitr::kable(
+  format(pca$x[1:6,], digits = 1), 
+  caption = 'The data transformed to the new PCA axes.'
+)
+```
+
+# Data Transformation Illustration
+
+Since we have all the above information at our fingertips, we might 
+as well demonstrate how the vector of values for a sample is tranformed 
+from one set of axes to another.^[You can learn about this application of 
+matrix-vector multiplication from many online sources.] By multiplying the 
+first row of centered and scaled values (Mazda RX4) by the rotation matrix 
+(transposing as appropriate,) we produce a new vector that matches the first 
+row in the transformed data, and by this we confirm that we understand the 
+all the information returned by `prcomp()`.
+
+```{r xform_check}
+v_old <- scaled_data[1,]
+A <- t(pca$rotation)
+v_new <- A %*% v_old
+
+knitr::kable(
+  format(t(v_new), digits = 1), 
+  caption = "Transformed data for Mazda RX4"
+)
+```
+
+# Biplots
+
+It is difficult to plot higher-dimensional data; however, given that 
+our first two principal components capture 86% of the variation in our data, 
+it might be worth making a 2-D scatterplot using just these two dimensions, 
+to see if we can get any additional insight.
 
 # (original document)
 
