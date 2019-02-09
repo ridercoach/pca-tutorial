@@ -1,12 +1,12 @@
 ---
-title: "Principal Component Analysis: A Simple Example"
+title: "PCA and Supervised Learning: A Simple Example"
 author: "Eric N. Moyer"
 date: "`r Sys.Date()`"
 output:
+  tufte::tufte_html: default
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: pdflatex
-  tufte::tufte_html: default
   tufte::tufte_book:
     citation_package: natbib
     latex_engine: pdflatex
@@ -27,11 +27,35 @@ source("pca-utilities.R")
 # Introduction
 
 This exploration is inspired by Luke Hayden's excellent tutorial on DataCamp
-about doing Principal Component Analysis in R.^[
+about doing Principal Component Analysis in R,^[
 [Link](https://www.datacamp.com/community/tutorials/pca-analysis-r) to the
-article]  I use the same data and take the same basic approach, but Mr. Hayden
-explores more of the capabilities of `ggbiplot()`, and I take a closer look at
-the information returned by `prcomp()`.
+article] in which he uses PCA and the `ggbiplot()` package to visually identify
+groups in the data, which might be considered EDA or unsupervised learning.
+
+In this article I want to use the same data and R function (`prcomp()`) to  
+investigate how PCA can augment *supervised* learning; specifically, I want 
+to examine how the performance of a simple model is affected by:
+
+1. subsetting the original features based on insight gained from PCA;
+1. replacing the original features with some small set of PCA "features".
+
+# PCA and Supervised Learning
+
+PCA finds the directions along which a cloud of data points varies the 
+most.^[If our data includes *n* features, then each observation is a point in 
+n-dimensional space, and all the observations together might be envisioned 
+as a "cloud" of these points.]  It does not include any notion of one feature 
+being the "target" or "output", and therefore is often considered a technique 
+for *un*supervised learning.  It can also be used during EDA when we are simply 
+trying to become familiar with the data.
+
+However, because PCA usually enables us to convert our existing features to 
+a much smaller set of "better" features, it can also be used as a preprocessor 
+for supervised learning, and that is what we will explore in this article. Note 
+that when using PCA for this purpose, we do not include the target feature in the PC 
+analysis.^[If we did, we would "lose" the target feature, because it would be 
+mixed into the principal components with all the other features. (This will make 
+more sense as we continue.)]
 
 # The Data
 
@@ -44,6 +68,34 @@ knitr::kable(
   data[1:4,], caption = 'The first few rows of the data'
 )
 ```
+
+This data set is very small, which is good for our purposes here, 
+but which prevents us from doing rigorous modeling with cross-validation, 
+etc.  Still, we can fit a line and check the RSE, and I think that is sufficient.
+
+# Model for Evluating Effect of PCA
+
+PCA requires the data it operates on to be centered and scaled, so, to be 
+consistent, we will do the same thing to the non-target features when 
+creating our baseline model:
+
+```{r scaled_X}
+scaled_X <- scale(data[,2:9], center = TRUE, scale = TRUE)
+data_base <- as.data.frame(cbind(data[,1], scaled_X))
+colnames(data_base)[1] <- "mpg"
+knitr::kable(
+  format(data_base[1:4,], digits = 3), 
+  caption = 'Data for creating the baseline model'
+)
+```
+
+And here is the RSE of the baseline model:
+
+```{r mod_base}
+mod_base <- lm(mpg ~ ., data_base)
+sigma(mod_base)
+```
+
 
 Often in data analysis it is helpful to put all of our features "on the same
 footing" by *centering* (subtracting the mean) and *scaling* the values (so that
@@ -60,6 +112,7 @@ knitr::kable(
   caption = 'Same data, centered and scaled'
 )
 ```
+
 
 # The Data as a Vector Space
 
