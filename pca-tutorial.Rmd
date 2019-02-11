@@ -3,10 +3,10 @@ title: "PCA and Supervised Learning: A Simple Example"
 author: "Eric N. Moyer"
 date: "`r Sys.Date()`"
 output:
-  tufte::tufte_html: default
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: pdflatex
+  tufte::tufte_html: default
   tufte::tufte_book:
     citation_package: natbib
     latex_engine: pdflatex
@@ -32,30 +32,12 @@ about doing Principal Component Analysis in R,^[
 article] in which he uses PCA and the `ggbiplot()` package to visually identify
 groups in the data, which might be considered EDA or unsupervised learning.
 
-In this article I want to use the same data and R function (`prcomp()`) to  
-investigate how PCA can augment *supervised* learning; specifically, I want 
-to examine how the performance of a simple model is affected by:
+In this article I want to use the same data and R function (`prcomp()`) to 
+investigate how PCA can augment *supervised* learning; specifically, how the 
+accuracy of a predictive model is affected by:
 
 1. subsetting the original features based on insight gained from PCA;
-1. replacing the original features with some small set of PCA "features".
-
-# PCA and Supervised Learning
-
-PCA finds the directions along which a cloud of data points varies the 
-most.^[If our data includes *n* features, then each observation is a point in 
-n-dimensional space, and all the observations together might be envisioned 
-as a "cloud" of these points.]  It does not include any notion of one feature 
-being the "target" or "output", and therefore is often considered a technique 
-for *un*supervised learning.  It can also be used during EDA when we are simply 
-trying to become familiar with the data.
-
-However, because PCA usually enables us to convert our existing features to 
-a much smaller set of "better" features, it can also be used as a preprocessor 
-for supervised learning, and that is what we will explore in this article. Note 
-that when using PCA for this purpose, we do not include the target feature in the PC 
-analysis.^[If we did, we would "lose" the target feature, because it would be 
-mixed into the principal components with all the other features. (This will make 
-more sense as we continue.)]
+1. replacing the original features with a much smaller set of PCA "features".
 
 # The Data
 
@@ -69,11 +51,16 @@ knitr::kable(
 )
 ```
 
-This data set is very small, which is good for our purposes here, 
-but which prevents us from doing rigorous modeling with cross-validation, 
-etc.  Still, we can fit a line and check the RSE, and I think that is sufficient.
+This data set is very small, so nothing in this article will be an 
+example of real-world practice.  In particular, we will not be able to 
+evaluate the model against a different set of data; we will just use the 
+RSE returned by `lm()` as our yardstick. Hopefully this does not completely 
+negate the value of the techniques.
 
 # Model for Evluating Effect of PCA
+
+We will use a linear model, as implemented by the R function `lm()`, to 
+predict **mpg** from the other features.
 
 PCA requires the data it operates on to be centered and scaled, so, to be 
 consistent, we will do the same thing to the non-target features when 
@@ -81,38 +68,187 @@ creating our baseline model:
 
 ```{r scaled_X}
 scaled_X <- scale(data[,2:9], center = TRUE, scale = TRUE)
-data_base <- as.data.frame(cbind(data[,1], scaled_X))
-colnames(data_base)[1] <- "mpg"
+data_baseline <- as.data.frame(cbind(data[,1], scaled_X))
+colnames(data_baseline)[1] <- "mpg"
 knitr::kable(
-  format(data_base[1:4,], digits = 3), 
-  caption = 'Data for creating the baseline model'
+  format(data_baseline[1:4,], digits = 3), 
+  caption = 'Sample of data for baseline model'
 )
 ```
 
-And here is the RSE of the baseline model:
+Our baseline RSE, using all of the original features (which is what 
+we would naturally do if we had no insight to the contrary) is:
 
-```{r mod_base}
-mod_base <- lm(mpg ~ ., data_base)
-sigma(mod_base)
+```{r mod_baseline}
+sigma(lm(mpg ~ ., data_baseline))
 ```
 
+# A Subtle Point
 
-Often in data analysis it is helpful to put all of our features "on the same
-footing" by *centering* (subtracting the mean) and *scaling* the values (so that
-they have unit variance) of each one, as shown below.^[This can be done for you by
-`prcomp()`, but for illustrative reasons I am doing it separately.] The mathematical 
-reasons for doing this are better explained by others^[such as this link], but you 
-should understand that even though the numbers have changed, the patterns in the 
-data are preserved.
+There is subtle distinction that comes into play when using PCA to 
+augment supervised learning, depending on whether we are trying to find 
+the most important subset of our original features, or whether we 
+instead want to transform our original features into a smaller set 
+of "artificial", or composite, features.
 
-```{r scaled_data}
-scaled_data <- scale(data, center = TRUE, scale = TRUE)
+In either case, the contribution of PCA is to find the directions along which our
+cloud of data points varies the most;^[If our data includes *n* features, then
+each observation is a point in n-dimensional space, and all the observations
+together might be envisioned as a "cloud" of such points.] it knows nothing
+about which feature we are trying to predict.
+
+If we are trying to subset our original features, then what we hope to gain 
+from PCA is to determine which (if any) of the features *and the target* are 
+more or less aligned with any of the principal components (directions of greatest 
+variance.)  So in this case, we include the target in the data that gets 
+transformed by PCA.
+
+On the other hand, if we want to convert our original features into a new 
+set of composite features,^[More accurately, transform our observations into 
+a different coordinate system, in which the axes align with the principal 
+components.] then we *cannot* include the target in the PCA, because we will 
+"lose it" (it will get mixed into the principal components along with all the 
+other features.)
+
+In this article we will try out both approaches.
+
+# Subsetting the Original Features
+
+We pass the entire data set, including the target feature **mpg**, to the 
+PCA function `prcomp()`, which returns a data structure containing a lot 
+of interesting information.  We will look at three aspects of it.
+
+## PCA Summary Information
+
+```{r pca_subset_summary}
+pca = prcomp(data, center = TRUE, scale = TRUE)
+m <- format(summary(pca)$importance, digits = 1)
 knitr::kable(
-  format(scaled_data[1:4,], digits = 1), 
-  caption = 'Same data, centered and scaled'
+  as.data.frame(m), caption = 'PCA Summary.'
 )
 ```
 
+The above table shows nine principal components, because we passed in a data set
+with nine features.  The PCs are given in order of decreasing importance.  PC1
+represents the direction along which our cloud of data points varies the most;
+the SD (row 1 in the table) of the data along this direction is about 2.4, and
+63% of the "signal" in the data (row 2 in the table) is seen along this axis. 
+Notice also that the first two PCs together account for 86% of the meaningful 
+information in this data set (row 3 in the table.)
+
+## Transformed Observations
+
+Another thing returned by `prcomp()` is the coordinates of our data in the new 
+system (in which the axes are along the directions of the PCs.)  The table below 
+shows these new coordinates for the same few rows we have been looking at. *The 
+"identities" of the observations within the data set have not changed;* they are 
+simply being expressed as values for PC1, PC2, etc, instead of as values for 
+**mpg**, **cyl**, etc.
+
+```{r pca_subset_xformed_data}
+knitr::kable(
+  format(pca$x[1:4,], digits = 1), 
+  caption = 'Sample of transformed data'
+)
+```
+
+When our data is expressed in terms of the original physical features, 
+it is difficult to represent visually; we can choose features for 2-D or 
+3-D plots, but we have no way of knowing how close those plots come to telling 
+the whole story.  Now, however, knowing that most of the variance in the 
+data is captured in just two PCs, we *can* make a meaningful 2-D plot (see margin.) 
+This plot is not necessary for what we are doing here, but it is interesting, 
+and shows how PCA can reveal groups in the data.
+
+```{r pca_subset_plot_pc1pc2, fig.margin = TRUE, fig.cap = "The data in terms of PC1 and PC2", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE}
+xformed_data <- as.data.frame(pca$x)
+ggplot(xformed_data) +
+  geom_point(aes(PC1, PC2), color = "blue") +
+  xlim(-4, 4) + ylim(-4, 4)
+```
+
+## Transformation Matrix
+
+The information returned by `prcomp()` also includes a matrix that can be 
+used and understood in several different ways (see table below.)
+
+```{r pca_subset_matrix}
+m <- as.data.frame(format(pca$rotation, digits = 1))
+knitr::kable(
+  m, caption = 'Transformation matrix'
+)
+```
+
+Each column in the table gives the components (in terms of the original 
+physical coordinate system) of a unit vector in the direction of one of the 
+PCs.  (This matrix was used by `prcomp()` to produce the transformed data, and 
+could be used to transform new observations in the same way;^[If you are not 
+familiar with this process, there are lots of online sources that will help. If 
+you have the time, the 14-part video series *Essence of Linear Algebra* on [3blue1brown](https://www.3blue1brown.com) is excellent.] see Appendix A for 
+an example.) The greater the magnitude of a number in this matrix (regardless 
+of sign,) the more in alignment are the the corresponding physical feature and 
+principal component.
+
+```{r pca_heatmap, fig.margin = TRUE, fig.cap = "Overall importance of original features in the dataset, according to PCA.", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE}
+prop_var <- matrix(rep(summary(pca)$importance[2,], 9), 
+                   nrow = 9, byrow = TRUE)
+df <- cbind(rownames(pca$rotation), 
+            data.frame(pca$rotation * prop_var))
+colnames(df)[1] <- "feat"
+df2 <- gather(df, colnames(df)[2:10], 
+              key = "PC", value = "comp")
+df2$feat <- factor(df2$feat, 
+                   levels=(rev(rownames(pca$rotation))))
+ggplot(df2, aes(x = PC, y = feat)) + 
+  geom_tile(aes(fill = comp), colour = "white") +
+  guides(fill = "none") +
+  scale_fill_gradient2(low = "darkblue", 
+                       mid = "white", high = "darkred")
+```
+
+The heatmap in the margin visually combines the information in the transformation
+matrix and the PCA summary table.  In each column in the plot, bolder
+colors indicate larger components along the original feature axes, and the
+colors in each columnn are scaled by the "Proportion of Variance" in the PCA
+Summary table.  So we see again that only the first 2 or 3 PCA
+directions are meaningful, and within those we can see which original features
+matter more.
+
+# Feature Selection
+
+A plot will make it easier to check for alignment between the original features
+and the first two principal components:^[The `ggbiplot` package will make a plot
+similar to this, but it's more fun to do it ourselves.]
+
+```{r pca_subset_biplot, fig.cap = "Original features as vectors in PC1-PC2 plane"}
+df <- data.frame("feat" = rownames(pca$rotation),  
+                 "PC1" = pca$rotation[,1], 
+                 "PC2" = pca$rotation[,2])
+ggplot(df) + geom_segment(aes(x = 0, y = 0, 
+        xend = PC1, yend = PC2, color = feat)) +
+  xlim(-0.5, 0.5) + ylim(-0.75, 0.75) + 
+  labs(x = "PC1", y = "PC2")
+```
+
+The first thing we notice is that our target feature **mpg** and the **cyl** 
+feature are closely aligned with the PC1 axis.  So let's try predicting **mpg** 
+from *only* **cyl**:
+
+```{r mod_cyl}
+sigma(lm(mpg ~ cyl, data_baseline))
+```
+
+This yields an RSE of 3.21, which is worse than the baseline of 2.62, so let's 
+try something else.  We see that **hp**, **disp**, and **wt** are also somewhat 
+aligned with PC1, and, taken together, it appears that their misalignments might 
+balance out, so let's try that:
+
+```{r mod_cylplus}
+sigma(lm(mpg ~ cyl + hp + disp + wt, data_baseline))
+```
+
+This model yields a *better* fit than the baseline model that uses all the 
+features.
 
 # The Data as a Vector Space
 
@@ -131,14 +267,6 @@ coordinate system, in which the axes are the "principal components" found in
 the data (PC1, PC2, etc) instead of the original measured quantities (mpg, 
 cyl, etc.)
 
-```{r xformed_data}
-pca <- prcomp(scaled_data)
-knitr::kable(
-  format(pca$x[1:4,], digits = 1), 
-  caption = 'Same data, transformed by PCA'
-)
-```
-
 The principal components (PCs) are really a new set of features (though not
 real-world features) that correspond to what matters most in our data.  Not only
 can this provide insight, but it often happens that most of the important
@@ -149,204 +277,6 @@ starting with hundreds) makes everything downstream a little simpler.
 However, there is a downside: it can often be challenging to relate the PCs to
 real-world quantities that we can control in order to gain some practical
 benefit (which is usually the ultimate goal of any data project.)
-
-# Simple Model for Evaluating PCA Effects
-
-It is not the purpose of this article to do any modeling or prediction, nor 
-is PCA itself concerned at all with inputs, outputs, or predictions.^[PCA views 
-all features the same, and simply detects interactions between them.] 
-However, PCA is almost always used as just one tool in a project that *does* 
-do some kind of modeling, so it will be helpful to have a simple model to 
-use here to evaluate the effects of PCA.
-
-We will just do a basic linear regression, predicting mpg from all the other
-features, and evaluating the performance of the model by taking the square root
-of the sum of the squares of the residuals, which are included in the data
-structure returned by `lm()`.  We use the data that has been centered and
-scaled, because that is what is used to determine the PCs:
-
-```{r model_init}
-mod_scaled_data <- lm(mpg ~ ., as.data.frame(scaled_data))
-sqrt(sum(mod_scaled_data$residuals^2))
-```
-
-The above number is the composite, across all the observations in the data set, 
-of the difference between the prediction of the model and the actual value.  A 
-lower value indicates a better-performing model.  This value comes from using the 
-complete set of original features, and represents the best we can do without PCA. As we proceed, we will rerun this test in various ways based on insight gained from PCA, and 
-see what happens.
-
-# Correlation in the Data
-
-Nothing we do in this exploration assumes any of the features of our data 
-to be either "inputs" or "outputs".  We are not doing any modeling (not 
-really) or prediction; we just have a table that records the values of several 
-attributes for a bunch of samples.
-
-And yet, in the real world, which is where our data comes from, there 
-*does* exist correlation (the identification of which is often a %>%  first step 
-toward understanding how things work, which is what we really want.)  In this 
-example, which uses a small dataset of features that are familiar to most 
-of us, much of the correlation is intuitive and we will see it in the 
-PCA results.  However, if we were dealing with hundreds of features rather 
-than nine, and those features were more abstract than physical quantities 
-such as weight and engine displacement, this might not be the case.
-
-# Calling `prcomp()`
-
-Performing a basic PCA in R is very easy, as shown below.  You can use the 
-`center` argument to shift the feature values so that they have zero means, and 
-the `scale` argument to scale the feature values to have unit variance, both 
-of which are generally good things to do.
-
-```{r prcomp}
-pca = prcomp(data, center = TRUE, scale = TRUE)
-# prettify what we would get from summary(pca)
-m <- format(summary(pca)$importance, digits = 1)
-knitr::kable(
-  as.data.frame(m), caption = 'PCA Summary.'
-)
-```
-
-We had nine original features, and we got nine principal components, and 
-PCA gives them to us in order of decreasing importance.  The most interesting 
-thing in the table above is the "Proportion of Variance" row: the most important 
-principal component (PC1) captures (or, you might say, controls) %63 of what is 
-"happening" in our data.  Together, the first two principal components explain 
-86% of the variance.  In general, if we can figure out how the most important 
-principal comonents relate to real-world quantities that we can measure and 
-control, then we know what to focus on in order to bring about the changes 
-we desire in the world represented by our data.
-
-Much of this article is devoted to interpreting our PCA results; however, 
-first I want to look more closely at the information returned by `prcomp()`
-
-# Data returned by `prcomp()`: `sdev`, `rotation`
-
-```{r prcomp_results}
-names(pca)
-```
-
-The data  structure returned by `prcomp()` has five elements with the names 
-shown above. The `sdev` element is a vector of the standard deviations of all 
-the principal components, which we saw in the summary table above.  Notice that 
-the most important component (the one that explains most of the variation) is 
-the one with the greatest SD.  Notice also that the magnitude of the SDs 
-reflects the fact that we specified in the `prcomp()` call for the data to 
-be scaled.
-
-The `rotation` element is much more interesting:
-
-```{r rotation}
-m <- as.data.frame(format(pca$rotation, digits = 1))
-knitr::kable(
-  m, caption = '`rotation` matrix from `prcomp()`.'
-)
-```
-
-Each column in the above table holds the components of a unit
-vector^[Technically, an "eigenvector of the covariance matrix", as you can learn
-from many online sources.  However, for greater numerical accuracy, `prcomp()`
-uses singular value decomposition (SVD) to get the same result.] in the
-direction of the "axis" corresponding to that principal component.
-
-In a moment, we will anayze our PCA results using more rigorous methods, but 
-at this point let's glean what we can from what we have inh front of us.  Note that 
-these vectors are *in the frame of the original axes* (the features in our 
-dataset.)  So, taking PC2 for example, we see that the **gear** component 
-is much larger, relatively speaking, than the **cyl** component (0.551 vs 0.016); 
-this means that the direction of PC2 is more "aligned with" the original 
-"gear" feature axis than the "cyl" axis.  To put this another way, in terms 
-of PC2, the value of the "gear" feature make more difference than the value of 
-the "cyl" feature.
-
-Now, suppose, for example, we had found a PCA direction that was almost 
-completely aligned with one of the original feature axes, say, **disp**.  In 
-other words, its **disp** component was close to 1 and all the others were 
-close to zero.  This would mean that the "disp" feature by itself is somehow 
-"important" in the data.  However, if the hypothetical PCA direction we are 
-talking about here did not account for much of the overall variation in the 
-data, then this finding might not be of much practical use.
-
-```{r pc_heatmap, fig.margin = TRUE, fig.cap = "Overall importance of original features in the dataset, according to PCA.", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE, echo=FALSE}
-
-# make a df of the PCA vector components weighted by Proportion of Variance
-comps <- pca$rotation
-comp_wts <- matrix(rep(summary(pca)$importance[2,], 9), nrow = 9, byrow = TRUE)
-df <- data.frame(comps * comp_wts)
-
-# tidy the df to make it compatible with ggplot
-df <- cbind(rownames(df), data.frame(df, row.names = NULL))
-colnames(df)[1] <- "attr"
-df2 <- gather(df, colnames(df)[2:10], key = "PC", value = "comp")
-
-# reorder the y-axis to match the table of vector components
-# !!! must create new factor! cannot just change levels!
-df2$attr <- factor(df2$attr, levels=(rev(rownames(m))))
-
-# make the heatmap
-ggplot(df2, aes(x = PC, y = attr)) + 
-  geom_tile(aes(fill = comp), colour = "white") +
-  guides(fill = "none") +
-  scale_fill_gradient2(low = "darkblue", mid = "white", high = "darkred")
-```
-
-
-The plot at the right visually combines the information in the previous two 
-tables.  In each column in the plot, bolder colors indicate larger components 
-along the original feature axes (blue and red distinguish the sign of the 
-component, but here only the magnitude matters.)  Then, the colors in each 
-columnn are scaled by the "Proportion of Variance" in the PCA Summary table.  So 
-we can tell at a glance that only the first 2 or 3 PCA directions are meaningful, 
-and within those we can see which original features matter most.
-
-We see that most of the correlation (interaction) in the data is among the 
-features that have to do with how powerful a car's engine is, how much it weighs, 
-and its fuel efficiency, and this probably "feels correct" for most of us. 
-Remember, we are not talking about causality here; we are just looking at how 
-the features we have included in the study interact to give rise to meaningful 
-information in the data.
-
-# More data returned by `prcomp()`: `center`, `scale`, `x`
-
-We still haven't discussed the remaining three elements of the data 
-structure returned by `prcomp()`.  The elements `center` and `scale` are both 
-numeric vectors with the same number of elements there are features in the 
-data that was passed to `prcomp()`.  Recall that we instructed `prcomp()` to 
-center and scale the data; these vectors contain the numbers that were used 
-to do that, for each feature.  Using these vectors, we can scale the data 
-ourselves to see the numbers that `prcomp()` actually used for the analysis:
-
-```{r old_scaled_data}
-scaled_data <- scale(data, 
-  center = pca$center, scale = pca$scale)
-knitr::kable(
-  format(scaled_data[1:6,], digits = 1), 
-  caption = 'The centered and scaled data.'
-)
-```
-
-The table above contains the same sample as the table at the beginning of 
-this document, but with the numbers transformed in such as way as to put them 
-all on the same footing in terms of magnitude and variance, which makes the 
-analysis more accurate.  Please note that transforming the data in this 
-way preserves the patterns in it, even though the numeric values have 
-changed.
-
-Finally, the element `x` in the information returned by `prcomp()` contains the 
-*transformwd* data.  Recall that the purpose of PCA is to find a new set of 
-axes that align with patterns in the data; when we do this, the vector of 
-values that represents a sample does not really change its identity relative 
-to all the other samples, but the numbers needed to define it in terms of 
-the new axes are different.  The table below shows the transformed data for the 
-same sample as above, and you can see that the numbers are different.
-
-```{r old_xformed_data}
-knitr::kable(
-  format(pca$x[1:6,], digits = 1), 
-  caption = 'The data transformed to the new PCA axes.'
-)
-```
 
 # Data Transformation Illustration
 
@@ -360,34 +290,14 @@ row in the transformed data, and by this we confirm that we understand the
 all the information returned by `prcomp()`.
 
 ```{r xform_check}
-v_old <- scaled_data[1,]
-A <- t(pca$rotation)
-v_new <- A %*% v_old
-
-knitr::kable(
-  format(t(v_new), digits = 1), 
-  caption = "Transformed data for Mazda RX4"
-)
-```
-
-# Biplots
-
-It is difficult to plot higher-dimensional data; however, given that 
-our first two principal components capture 86% of the variation in our data, 
-it might be worth making a 2-D scatterplot using just these two dimensions, 
-to see if we can get any additional insight.
-
-```{r my_biplot, fig.width = 5, fig.height = 5, echo = FALSE}
-xformed_data <- as.data.frame(pca$x)
-ggplot(xformed_data) +
-  geom_point(aes(PC1, PC2), color = "blue") +
-  geom_spoke(aes(x = 0, y = 0, angle = pi/6, radius = 1), color = "red") +
-  xlim(-4, 4) + ylim(-4, 4)
-```
-
-
-```{r biplot, echo = FALSE, fig.width = 5, fig.height = 5, fig.fullwidth = TRUE}
-ggbiplot(pca)
+#v_old <- scaled_data[1,]
+#A <- t(pca$rotation)
+#v_new <- A %*% v_old
+#
+#knitr::kable(
+#  format(t(v_new), digits = 1), 
+#  caption = "Transformed data for Mazda RX4"
+#)
 ```
 
 # (original document)
@@ -567,62 +477,3 @@ p
 p + geom_smooth(method = 'lm') + facet_grid(~ gear)
 ```
 
-# Some Notes on Tufte CSS
-
-There are a few other things in Tufte CSS that we have not mentioned so far. If you prefer `r sans_serif('sans-serif fonts')`, use the function `sans_serif()` in **tufte**. For epigraphs, you may use a pair of underscores to make the paragraph italic in a block quote, e.g.
-
-> _I can win an argument on any topic, against any opponent. People know this, and steer clear of me at parties. Often, as a sign of their great respect, they don't even invite me._
->
-> `r quote_footer('--- Dave Barry')`
-
-We hope you will enjoy the simplicity of R Markdown and this R package, and we sincerely thank the authors of the Tufte-CSS and Tufte-LaTeX projects for developing the beautiful CSS and LaTeX classes. Our **tufte** package would not have been possible without their heavy lifting.
-
-You can turn on/off some features of the Tufte style in HTML output. The default features enabled are:
-
-```yaml
-output:
-  tufte::tufte_html:
-    tufte_features: ["fonts", "background", "italics"]
-```
-
-If you do not want the page background to be lightyellow, you can remove `background` from `tufte_features`. You can also customize the style of the HTML page via a CSS file. For example, if you do not want the subtitle to be italic, you can define
-
-```css
-h3.subtitle em {
-  font-style: normal;
-}
-```
-
-in, say, a CSS file `my_style.css` (under the same directory of your Rmd document), and apply it to your HTML output via the `css` option, e.g.,
-
-```yaml
-output:
-  tufte::tufte_html:
-    tufte_features: ["fonts", "background"]
-    css: "my_style.css"
-```
-
-There is also a variant of the Tufte style in HTML/CSS named "[Envisoned CSS](http://nogginfuel.com/envisioned-css/)". This style can be used by specifying the argument `tufte_variant = 'envisioned'` in `tufte_html()`^[The actual Envisioned CSS was not used in the **tufte** package. We only changed the fonts, background color, and text color based on the default Tufte style.], e.g.
-
-```yaml
-output:
-  tufte::tufte_html:
-    tufte_variant: "envisioned"
-```
-
-To see the R Markdown source of this example document, you may follow [this link to Github](https://github.com/rstudio/tufte/raw/master/inst/rmarkdown/templates/tufte_html/skeleton/skeleton.Rmd), use the wizard in RStudio IDE (`File -> New File -> R Markdown -> From Template`), or open the Rmd file in the package:
-
-```{r eval=FALSE}
-file.edit(
-  tufte:::template_resources(
-    'tufte_html', '..', 'skeleton', 'skeleton.Rmd'
-  )
-)
-```
-
-This document is also available in [Chinese](http://rstudio.github.io/tufte/cn/), and its `envisioned` style can be found [here](http://rstudio.github.io/tufte/envisioned/).
-
-```{r bib, include=FALSE}
-# create a bib file for the R packages used in this document
-knitr::write_bib(c('base', 'rmarkdown'), file = 'skeleton.bib')
-```
