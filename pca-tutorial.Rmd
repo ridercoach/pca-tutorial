@@ -241,14 +241,32 @@ sigma(lm(mpg ~ cyl, data_baseline))
 This yields an RSE of 3.21, which is worse than the baseline of 2.62, so let's 
 try something else.  We see that **hp**, **disp**, and **wt** are also somewhat 
 aligned with PC1, and, taken together, it appears that their misalignments might 
-balance out, so let's try that:
+balance out, so:
 
 ```{r mod_cylplus}
 sigma(lm(mpg ~ cyl + hp + disp + wt, data_baseline))
 ```
 
-This model yields a *better* fit than the baseline model that uses all the 
+This yields a *better* fit than the baseline model that uses all the 
 features.
+
+So, while it bears repeating that we are using a very small data set, and
+therefore an overly-simplistic means of model evaluation, we have shown that PCA
+can be used to subset our original features.  Part of why this worked as well as
+it did for this particular data set is that most of the data variation was
+captured in the first two PCs, allowing us to plot the feature vectors in the
+PC1-PC2 plane without losing much information, and this 2-D plot is where the
+relationships we leveraged became most apparent.
+
+# Transforming Original Features to PCA Features
+
+Now we will look at another way PCA can augment supervised learning, which 
+is by transforming the original features into the coordinate system of the 
+principal components, and then using the most meaningful of those transformed 
+features as input to the model.
+
+As mentioned previously, with this approach we do not include the target feature 
+in the PCA.
 
 # The Data as a Vector Space
 
