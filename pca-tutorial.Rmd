@@ -3,10 +3,10 @@ title: "PCA and Supervised Learning: A Simple Example"
 author: "Eric N. Moyer"
 date: "`r Sys.Date()`"
 output:
+  tufte::tufte_html: default
   tufte::tufte_handout:
     citation_package: natbib
     latex_engine: pdflatex
-  tufte::tufte_html: default
   tufte::tufte_book:
     citation_package: natbib
     latex_engine: pdflatex
@@ -37,7 +37,7 @@ investigate how PCA can augment *supervised* learning; specifically, how the
 accuracy of a predictive model is affected by:
 
 1. subsetting the original features based on insight gained from PCA;
-1. replacing the original features with a much smaller set of PCA "features".
+1. replacing the original features with a much smaller set of transformed features.
 
 # The Data
 
@@ -51,13 +51,14 @@ knitr::kable(
 )
 ```
 
-This data set is very small, so nothing in this article will be an 
-example of real-world practice.  In particular, we will not be able to 
-evaluate the model against a different set of data; we will just use the 
-RSE returned by `lm()` as our yardstick. Hopefully this does not completely 
-negate the value of the techniques.
+This data set is very small, which is good for clarity in this example, 
+but makes it impractical to split out a test set for model evaluation, so 
+we will just use the RSE returned by `lm()` as a yardstick. I don't think 
+this will completely invalidate our findings, but a good next step would 
+be to try what we do here with a bigger set of data and proper model 
+validation.
 
-# Model for Evluating Effect of PCA
+# Model for Evaluating the Effects of PCA
 
 We will use a linear model, as implemented by the R function `lm()`, to 
 predict **mpg** from the other features.
@@ -76,8 +77,9 @@ knitr::kable(
 )
 ```
 
-Our baseline RSE, using all of the original features (which is what 
-we would naturally do if we had no insight to the contrary) is:
+Our baseline RSE, using all of the original features (which, with only nine
+features, is what we would naturally do if we had no insight to the contrary)
+is:
 
 ```{r mod_baseline}
 sigma(lm(mpg ~ ., data_baseline))
@@ -85,11 +87,10 @@ sigma(lm(mpg ~ ., data_baseline))
 
 # A Subtle Point
 
-There is subtle distinction that comes into play when using PCA to 
-augment supervised learning, depending on whether we are trying to find 
-the most important subset of our original features, or whether we 
-instead want to transform our original features into a smaller set 
-of "artificial", or composite, features.
+There is a subtle distinction when using PCA to augment supervised learning,
+depending on whether we are trying to find the most important subset of our
+original features, or whether we instead want to transform our original features
+into composite features that better represent the variation in the data.
 
 In either case, the contribution of PCA is to find the directions along which our
 cloud of data points varies the most;^[If our data includes *n* features, then
@@ -98,7 +99,7 @@ together might be envisioned as a "cloud" of such points.] it knows nothing
 about which feature we are trying to predict.
 
 If we are trying to subset our original features, then what we hope to gain 
-from PCA is to determine which (if any) of the features *and the target* are 
+from PCA is to determine which (if any) of the features (and the target) are 
 more or less aligned with any of the principal components (directions of greatest 
 variance.)  So in this case, we include the target in the data that gets 
 transformed by PCA.
@@ -128,13 +129,13 @@ knitr::kable(
 )
 ```
 
-The above table shows nine principal components, because we passed in a data set
-with nine features.  The PCs are given in order of decreasing importance.  PC1
-represents the direction along which our cloud of data points varies the most;
-the SD (row 1 in the table) of the data along this direction is about 2.4, and
-63% of the "signal" in the data (row 2 in the table) is seen along this axis. 
-Notice also that the first two PCs together account for 86% of the meaningful 
-information in this data set (row 3 in the table.)
+PCA transformed our nine original features into nine principal components, given
+in order of decreasing importance.  PC1 represents the direction along which our
+cloud of data points varies the most; the SD (first row of the table) of the
+data along this direction is about 2.4, and 63% of the "signal" in the data
+(second row) is seen along this axis. Notice also that the first two PCs
+together account for 86% of the meaningful information in this data set (third
+row.)
 
 ## Transformed Observations
 
@@ -186,7 +187,7 @@ could be used to transform new observations in the same way;^[If you are not
 familiar with this process, there are lots of online sources that will help. If 
 you have the time, the 14-part video series *Essence of Linear Algebra* on [3blue1brown](https://www.3blue1brown.com) is excellent.] see Appendix A for 
 an example.) The greater the magnitude of a number in this matrix (regardless 
-of sign,) the more in alignment are the the corresponding physical feature and 
+of sign,) the greater the alignment between the corresponding physical feature and 
 principal component.
 
 ```{r pca_heatmap, fig.margin = TRUE, fig.cap = "Overall importance of original features in the dataset, according to PCA.", fig.width=3.5, fig.height=3.5, cache=TRUE, message=FALSE}
@@ -216,7 +217,7 @@ matter more.
 
 # Feature Selection
 
-A plot will make it easier to check for alignment between the original features
+A plot will make it easier to see alignment between the original features
 and the first two principal components:^[The `ggbiplot` package will make a plot
 similar to this, but it's more fun to do it ourselves.]
 
@@ -250,13 +251,13 @@ sigma(lm(mpg ~ cyl + hp + disp + wt, data_baseline))
 This yields a *better* fit than the baseline model that uses all the 
 features.
 
-So, while it bears repeating that we are using a very small data set, and
-therefore an overly-simplistic means of model evaluation, we have shown that PCA
-can be used to subset our original features.  Part of why this worked as well as
+So, while it bears repeating that we are using a very small data set and  
+an overly-simplistic means of model evaluation, we have shown how PCA
+can be used for feature selection.  Part of why this worked as well as
 it did for this particular data set is that most of the data variation was
-captured in the first two PCs, allowing us to plot the feature vectors in the
-PC1-PC2 plane without losing much information, and this 2-D plot is where the
-relationships we leveraged became most apparent.
+captured in the first two PCs.  This allowed us to plot the original features 
+as 2-D vectors (without losing much information,) making the important 
+features much easier to see.
 
 # Transforming Original Features to PCA Features
 
@@ -296,41 +297,107 @@ Let's try adding one more PC:
 sigma(lm(mpg ~ PC1 + PC2 + PC3, df))
 ```
 
-This is the best we have seen yet.  In general, we can keep adding PCs in 
-order as much as we deem necessary, and the fit will always get better, because 
-the PCs by definition are along the directions of variance in the model and the 
-analysis returns them in order of decreasing importance (see margin plot.) This 
-is *not* the case with the original features --- we may often get a better fit by 
-using more of them, but we don't know ahead of time which combination is best; that 
-was the whole point of how we used PCA in the previous experiment.^[established 
-procedures...]
+This is the best we have seen yet.  In general, we can keep adding PCs to the
+model and the fit will always get better, because the PCs by definition are
+along the directions of variance in the model. This is *not* the case with the
+original features --- we may often get a better fit by using more of them (or
+sometimes, as shown in the previous section, *fewer* of them,) but it is hard to
+know intuitively which combination is best;^[There are various procedures for
+feature selection that do not utilize PCA.] that was the whole point of how we
+used PCA in the previous section.
 
 # Conclusion
 
 So it seems like using the transformed components is a more direct path to getting 
 the best possible fit; why not just always do it this way?
 
-The main reason is...
+If all we need is a black box that makes predictions as accurately as possible, 
+there is no reason to *not* do it that way.  Transforming the features before 
+feeding them into the model is not a big deal.
 
-# Apendix A: Data Transformation Illustration
+However, if what we want is *insight* --- if our motivation for modeling is to 
+understand how to control real-world quantities in order to realize some practical 
+benefit --- then the downside to using transformed features is that it can be 
+difficult to understand how they map to the real world.
 
-Since we have all the above information at our fingertips, we might 
-as well demonstrate how the vector of values for a sample is tranformed 
-from one set of axes to another.^[You can learn about this application of 
-matrix-vector multiplication from many online sources.] By multiplying the 
-first row of centered and scaled values (Mazda RX4) by the rotation matrix 
-(transposing as appropriate,) we produce a new vector that matches the first 
-row in the transformed data, and by this we confirm that we understand the 
-all the information returned by `prcomp()`.
+With the data set used in this article, that problem was not extreme; there 
+were only a few original features, they were simple physical quantities, and 
+the result that **mpg** could be predicted fairly well from only **cyl**, 
+**hp**, **disp** and **wt** probably makes intuitive sense to many people. 
+However, if we instead had hundreds of features that were more abstract, this 
+might not be the case.
+
+# Appendix A: Data Transformation Illustration
+
+Transforming a point or vector from one coordinate system to another 
+is almost always done by matrix-vector multiplication.^[You can learn about this from many online sources, including the [3blue1brown](https://www.3blue1brown.com) website 
+mentioned previously.]
+
+We saw above that when we give a data set to `prcomp()`, the information 
+returned includes the coordinates of the data points in the new coordinate 
+system (in which the axes are aligned with the principal components,) and 
+the transformation matrix used to find those new coordinates.
+
+Let's examine this process for the first row in our data (Mazda RX4.) The raw 
+componenets of this observation in the original data are:
+
+```{r}
+knitr::kable(
+  data[1,], caption = 'Original feature values, Mazda RX4'
+)
+```
+
+The numbers in the above table are the coordinates of the Mazda RX4 data 
+point in the original coordinate system (which simply means the terms in 
+which the data was observed.) Now, recall that PCA requires data which has 
+been centered and scaled, so let's see this data point in that form 
+(note that these numbers are still in the original coordinate system):
+
+```{r}
+scaled_data <- as.data.frame(scale(data, 
+                  center = TRUE, scale = TRUE))
+knitr::kable(
+  format(scaled_data[1,], digits = 3), 
+  caption = 'Mazda RX4, centered and scaled'
+)
+```
+
+Now let's run PCA on our raw data and view the first row of transformed 
+coordinates:
+
+```{r}
+pca = prcomp(data, center = TRUE, scale = TRUE)
+xformed_data <- as.data.frame(pca$x)
+knitr::kable(
+  format(xformed_data[1,], digits = 3), 
+  caption = 'Mazda RX4, transformed by PCA'
+)
+```
+
+The point of all this is verify that we can get the same numbers as in the 
+above table by doing our own multiplication of the transformation matrix with 
+the vector of coordinates in the original coordinate system, and you can 
+see from the code below that we can:
 
 ```{r xform_check}
-#v_old <- scaled_data[1,]
-#A <- t(pca$rotation)
-#v_new <- A %*% v_old
-#
-#knitr::kable(
-#  format(t(v_new), digits = 1), 
-#  caption = "Transformed data for Mazda RX4"
-#)
+# vector in original coordinate system
+v_old <- t(scaled_data[1,])
+# transformation matrix, transposed as nec
+A <- t(pca$rotation)
+# vector in PCA coordinate system
+v_new <- A %*% v_old
+
+knitr::kable(
+  format(t(v_new), digits = 1), 
+  caption = "Mazda RX4, transformed by us"
+)
 ```
+
+Our transformation matches what was done by `prcomp()`. If we wanted to 
+make predictions for new observations using a model that takes PCA features 
+as input, we would have to first transform the new observations similar to 
+the above.
+
+
+
 
