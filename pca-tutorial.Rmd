@@ -329,164 +329,75 @@ We will have to save the model in a variable (instead of just passing it to
 mod_pca2 <- lm(mpg ~ PC1 + PC2 + PC3, data_pca2)
 ```
 
+## Validating Our Methodology
+
 Just to make sure we know what we are doing, let's try this with a known observation 
 first, before venturing into uncharted territory.  Let's use the data for "Lincoln 
-Continental", because the model gives a prediction close to reality (small residual):
-
-```{r linc_res}
-mod_pca2$residuals["Lincoln Continental"]
-```
-
-Here is the centered and scaled data for this observation in the *original* 
-(non-PCA) coordinate system:
+Continental", because for this observation the model gives a prediction close to 
+reality.  Here is the raw data:
 
 ```{r linc_orig_data}
 knitr::kable(
-  format(data_baseline["Lincoln Continental",], digits = 3), 
-  caption = 'Lincoln Continental, centered and scaled'
+  data["Lincoln Continental",], 
+  caption = 'Lincoln Continental, raw data'
 )
 ```
 
-Before we can use this data as input to the model, we must transform it to the
-PCA coordinate system, which is done by matrix-vector multiplication.^[You can
-learn about this from many online sources, including the
-[3blue1brown](https://www.3blue1brown.com) website mentioned previously.] Recall 
-that the information returned by `prcomp()` includes the matrix we need to 
-do this:
+It would be nice to have a function that we can pass a raw feature vector 
+to, along with whatever else is needed, and get back the prediction. Below 
+is such a function, which we will explain in a moment.
 
-```{r linc_xfrm_data}
-# vector in original coordinate system, transposed
-v_old <- t(data_baseline["Lincoln Continental",2:9])
-# transformation matrix, transposed
-A <- t(pca2$rotation)
-# matrix-vector mult yields vector in PCA coordinate system
-v_new <- A %*% v_old
-
-knitr::kable(
-  format(t(v_new), digits = 3), 
-  caption = "Lincoln Continental, transformed"
-)
+```{r pred_func}
+pred_func <- function(model, pca_info, df_features) {
+  # 1. raw data must be centered & scaled same as PCA input
+  df <- (df_features - pca_info$center) / pca_info$scale
+  # 2. feature vector in original coords
+  v_orig <- as.vector(df)
+  # 3. matrix-vector mult to transform to PCA coords
+  v_pca <- t(pca_info$rotation) %*% t(v_orig)
+  # 4. build df for input to model
+  df_in <- data.frame("PC1" = v_pca[1], "PC2" = v_pca[2], 
+                      "PC3" = v_pca[3])
+  # 5. return prediction
+  predict(model, df_in)
+}
 ```
 
-If we compare this to the corresponding row in the transformed data returned 
-by `prcomp()`, we can see that we have done the conversion correctly:
+To use this function for our test case, we will pass in all the features 
+*except* **mpg**, and we should get back a value close to 10.4. We can 
+see below that this is indeed the case, so it looks like our methodology is 
+good.
 
-```{r linc_xfrm_comp}
-df_tmp <- as.data.frame(pca2$x)
-knitr::kable(
-  format(df_tmp["Lincoln Continental",], digits = 3), 
-  caption = 'Same data transformed by `pcomp()`'
-)
+```{r}
+pred_func(mod_pca2, pca2, data["Lincoln Continental",2:9])
 ```
-
-And as the final step in checking our understanding, let's take the 
-data that *we* transformed to PCA coordinates, and pass the first three 
-components of it to the model to get a prediction:
-
-```{r linc_predict}
-predict(mod_pca2, data.frame("PC1" = v_new[1], 
-               "PC2" = v_new[2], "PC3" = v_new[3]))
-```
-
-The above result matches the combination of the actual **mpg** for the test 
-case and the residual returned from fitting the model, so we have verified that 
-we know how to use the model to get a prediction.
 
 ## Prediction for New Observation
 
 Now let's make a prediction for an unknown case:
 
 ```{r data_wombat}
-#data_wombat <- data.frame("cyl" = 8, "disp" = 500, "hp" = 700, 
-#                  "drat" = 2.99, "wt" = 4.275, "qsec" = 11.58, 
-#                  "gear" = 5, "carb" = 2)
-data_wombat <- data.frame("cyl" = 8, "disp" = 460, "hp" = 215, 
-                  "drat" = 3, "wt" = 5.424, "qsec" = 17.82, 
-                  "gear" = 3, "carb" = 4)
+data_wombat <- data.frame("cyl" = 8, "disp" = 500, "hp" = 700, 
+                  "drat" = 2.99, "wt" = 4.275, "qsec" = 11.58, 
+                  "gear" = 5, "carb" = 2)
 rownames(data_wombat)[1] <- "Super Wombat"
 knitr::kable(data_wombat,
-  caption = 'Original feature values, Super Wombat'
+  caption = 'Super Wombat, raw data'
 )
 ```
-
-Transform the data to PCA coordinates and feed the first three components 
-to the model:
-
-```{r new_pred}
-v_old <- t(data_wombat[1,])
-v_new <- A %*% v_old
-predict(mod_pca2, data.frame("PC1" = v_new[1], 
-               "PC2" = v_new[2], "PC3" = v_new[3]))
-```
-
-
-# old stuff
-
-We saw above that when we give a data set to `prcomp()`, the information 
-returned includes the coordinates of the data points in the new coordinate 
-system (in which the axes are aligned with the principal components,) and 
-the transformation matrix used to find those new coordinates.
-
-Let's examine this process for the first row in our data (Mazda RX4.) The raw 
-componenets of this observation in the original data are:
 
 ```{r}
-knitr::kable(
-  data[1,], caption = 'Original feature values, Mazda RX4'
-)
+pred_func(mod_pca2, pca2, data_wombat)
 ```
 
-The numbers in the above table are the coordinates of the Mazda RX4 data 
-point in the original coordinate system (which simply means the terms in 
-which the data was observed.) Now, recall that PCA requires data which has 
-been centered and scaled, so let's see this data point in that form 
-(note that these numbers are still in the original coordinate system):
+The model predicts 8.5 miles-per-gallon for the high performance Super 
+Wombat, and this is at least somewhat reasonable relative to the  model's 
+predictions for other vehicles. However, whenever we feed a model an 
+observation that is significantly different than all the data it was trained 
+on, we should be extra cautious about the result.
 
-```{r}
-scaled_data <- as.data.frame(scale(data, 
-                  center = TRUE, scale = TRUE))
-knitr::kable(
-  format(scaled_data[1,], digits = 3), 
-  caption = 'Mazda RX4, centered and scaled'
-)
-```
+## Explanation of Pre-Processing
 
-Now let's run PCA on our raw data and view the first row of transformed 
-coordinates:
-
-```{r}
-pca = prcomp(data, center = TRUE, scale = TRUE)
-xformed_data <- as.data.frame(pca$x)
-knitr::kable(
-  format(xformed_data[1,], digits = 3), 
-  caption = 'Mazda RX4, transformed by PCA'
-)
-```
-
-The point of all this is verify that we can get the same numbers as in the 
-above table by doing our own multiplication of the transformation matrix with 
-the vector of coordinates in the original coordinate system, and you can 
-see from the code below that we can:
-
-```{r xform_check}
-# vector in original coordinate system
-v_old <- t(scaled_data[1,])
-# transformation matrix, transposed as nec
-A <- t(pca$rotation)
-# vector in PCA coordinate system
-v_new <- A %*% v_old
-
-knitr::kable(
-  format(t(v_new), digits = 1), 
-  caption = "Mazda RX4, transformed by us"
-)
-```
-
-Our transformation matches what was done by `prcomp()`. If we wanted to 
-make predictions for new observations using a model that takes PCA features 
-as input, we would have to first transform the new observations similar to 
-the above.
-
-
+dddd
 
 
