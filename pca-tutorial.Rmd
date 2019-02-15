@@ -32,9 +32,10 @@ about doing Principal Component Analysis in R,^[
 article] in which he uses PCA and the `ggbiplot()` package to visually identify
 groups in the data, which might be considered EDA or unsupervised learning.
 
-In this article I want to use the same data and R function (`prcomp()`) to 
-investigate how PCA can augment *supervised* learning; specifically, how the 
-accuracy of a predictive model is affected by:
+In this article^[This document was created in RStudio using the **tufte_html** and
+**tufte_handout** formats.] I want to use the same data and R function
+(`prcomp()`) to investigate how PCA can augment *supervised* learning;
+specifically, how the accuracy of a predictive model is affected by:
 
 1. subsetting the original features based on insight gained from PCA;
 1. replacing the original features with transformed features.
@@ -54,7 +55,7 @@ knitr::kable(
 This data set is very small, which is convenient for this article, 
 but makes it impractical to split out a test set for model evaluation, so 
 we will just use the RSE returned by `lm()` as a yardstick. I don't think 
-this will completely invalidate our results, but a good next step would 
+this will completely invalidate the results, but a good next step would 
 be to try what we do here with a bigger set of data and proper model 
 validation.
 
@@ -87,9 +88,9 @@ sigma(lm(mpg ~ ., data_baseline))
 
 # Insight vs Prediction
 
-How we use PCA with supervised learning depends on whether we want to gain
-*insight* (by determining which of the original features are most important,) or
-whether we simply want to make *predictions* as accurately as possible (by
+How we use PCA with supervised learning depends on whether we primarily want 
+*insight* (by determining which features are most important,) or, 
+instead, to make *predictions* as accurately as possible (by
 transforming the original features into composite features that better represent
 the variation in the data.)
 
@@ -97,11 +98,11 @@ In either case, the contribution of PCA is to find the directions along which ou
 cloud of data points varies the most;^[If our data includes *n* features, then
 each observation is a point in n-dimensional space, and all the observations
 together might be envisioned as a "cloud" of such points.] it knows nothing
-about which feature we are trying to predict.
+about prediction.
 
 If we are pursuing insight, then what we hope to gain from PCA is knowledge of
-which (if any) original features are most closely aligned with a direction of
-greatest variance.  In this case, it is probably helpful to include the target
+which (if any) original features most closely align with a direction of
+variance.  In this case, it is helpful to include the target
 feature in the data that gets transformed by PCA.
 
 On the other hand, if we want to make predictions based on PCA-transformed 
@@ -109,13 +110,13 @@ features, then we do not include the target feature in PCA, for a couple of
 reasons, not least of which is that when we use the model in production, we 
 won't *have* the target feature to transform.
 
-In this article we will try out both approaches.
+In this article we try out both approaches.
 
 # Approach 1: Feature Selection via PCA
 
 We pass the entire data set, including the target feature **mpg**, to the 
 PCA function `prcomp()`, which returns a data structure containing a lot 
-of interesting information.  We will look at three aspects of it.
+of useful information.  We will look at three aspects of it.
 
 ## PCA Summary Information
 
@@ -175,15 +176,15 @@ knitr::kable(
 )
 ```
 
-Each column in the table gives the components (in terms of the original 
-physical coordinate system) of a unit vector in the direction of one of the 
-PCs.  (This matrix was used by `prcomp()` to produce the transformed data, and 
-could be used to transform new observations in the same way;^[If you are 
-unfamiliar with this process, there are lots of online sources that will help. If 
-you have the time, the 14-part video series *Essence of Linear Algebra* on [3blue1brown.com](https://www.3blue1brown.com) is excellent.] see Appendix A for 
-an example.) The greater the magnitude of a number in this matrix (regardless 
-of sign,) the greater the alignment between the corresponding physical feature and 
-principal component.
+Each column of the above table shows the components (in terms of the original
+physical coordinate system) of a unit vector in the direction of one of the PCs.
+(This matrix was used by `prcomp()` to produce the transformed data, and could
+be used to transform new observations in the same way;^[If you are unfamiliar
+with transforming vectors between coordinate systems, the video series *Essence
+of Linear Algebra* on [3blue1brown.com](https://www.3blue1brown.com) is an
+excellent resource.] see Appendix A for an example.) The greater the magnitude
+of a number in this matrix (regardless of sign,) the greater the alignment
+between the corresponding physical feature and principal component.
 
 We can combine the transformation matrix and PCA summary into a "heatmap" (see
 margin; in each column, darker colors indicate larger components along the
@@ -224,7 +225,7 @@ ggplot(df) + geom_segment(aes(x = 0, y = 0,
   labs(x = "PC1", y = "PC2")
 ```
 
-The first thing we notice is that our target feature **mpg** and the **cyl** 
+We notice in the above plot that our target feature **mpg** and the **cyl** 
 feature are closely aligned with the PC1 axis.  So let's try predicting **mpg** 
 from *only* **cyl**:
 
@@ -249,12 +250,12 @@ overly-simplistic means of model evaluation, we have shown how PCA can be used
 for feature selection.  Part of why this worked so well in this example is that
 most of the data variation was captured in the first two PCs. This allowed us to
 plot the original features as 2-D vectors without losing much information,
-making the important features much easier to see. This will not necessarily always 
-be the case.
+making the important features much easier to see. This will not necessarily 
+be the case for every data set.
 
 # Approach 2: Prediction Using PCA-Transformed Features
 
-As mentioned previously, with this approach we do not include the target feature 
+With this approach we do not include the target feature 
 in the PCA; here is the summary of the new PC analysis:
 
 ```{r pca2_summary}
@@ -343,8 +344,8 @@ knitr::kable(
 )
 ```
 
-It would be nice to have a function that we can pass a raw feature vector 
-to, along with whatever else is needed, and get back the prediction. Below 
+It would be nice to have a function that takes a raw feature vector 
+to (along with other required information) and returns the prediction. Below 
 is such a function, which we will explain in a moment.
 
 ```{r pred_func}
@@ -363,12 +364,12 @@ pred_func <- function(model, pca_info, df_features) {
 }
 ```
 
-To use this function for our test case, we will pass in all the features 
+To use this function for our test case, we pass in all the features 
 *except* **mpg**, and we should get back a value close to 10.4. We can 
 see below that this is indeed the case, so it looks like our methodology is 
 good.
 
-```{r}
+```{r pred_linc}
 pred_func(mod_pca2, pca2, data["Lincoln Continental",2:9])
 ```
 
@@ -386,18 +387,39 @@ knitr::kable(data_wombat,
 )
 ```
 
-```{r}
+```{r pred_wombat}
 pred_func(mod_pca2, pca2, data_wombat)
 ```
 
 The model predicts 8.5 miles-per-gallon for the high performance Super 
-Wombat, and this is at least somewhat reasonable relative to the  model's 
-predictions for other vehicles. However, whenever we feed a model an 
-observation that is significantly different than all the data it was trained 
-on, we should be extra cautious about the result.
+Wombat, which does not seem unreasonable.  However, several feature values 
+for this unknown case lie outside the ranges of those features in the data 
+that was used to fit the model, so we should be especially cautious in 
+utilizing this prediction.
 
-## Explanation of Pre-Processing
+## Explanation of Prediction Function
 
-dddd
+Here is a brief explanation of the steps in our function `pred_func()`:
+
+1. Recall that PCA operates on data which has been centered and scaled; we 
+do this to our raw feature values by using the vectors of means (`pca2$center`) and 
+scaling factors (`pca2$scale`) that were used in the PCA associated with fitting 
+the model.  These vectors are included in the information returned by 
+`prcomp()`, which is one reason that data structure is passed to 
+`pred_func()`.
+1. The main reason for step 2 is that the matrix-vector multiplication we do 
+in step 3 doesn't work with a dataframe, and for convenience we built the function 
+to accept a dataframe as input.
+1. Here we transform the features from the original coordinate system to the 
+PCA coordinate system, for which we need the transformation matrix returned by 
+`prcomp()`. Note that the matrix and vector are both transposed by passing them 
+to `t()`.^[We are using the conventional format of having the transformation 
+matrix on the left and the vector to be transformed on the right.  For this to 
+work properly, the vector must be a column vector, and the matrix must have 
+the directions of the new axes as *rows*.]
+1. The R function `predict()` takes as arguments the model to use, and the input 
+data as a dataframe, so here we assemble into a dataframe the PCs we want to use 
+as input to the model.
+1. Use the model to make the prediction.
 
 
